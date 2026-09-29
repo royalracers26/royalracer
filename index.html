@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Find my game with ID 148822073</title>
+<meta name="description" content="Find my game with ID 148822073">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Baloo+2:wght@500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  /* ---------- palette (green + blue) ---------- */
+  :root {
+    --blue-900: #0a1b3d;
+    --blue-800: #102a5c;
+    --blue-500: #2f7df6;
+    --blue-300: #6fc3ff;
+    --blue-100: #d6ecff;
+
+    --green-600: #12a55a;
+    --green-500: #1ec96e;
+    --green-300: #6ef2a8;
+
+    --ink: #06122b;
+    --white: #ffffff;
+    --gold: #ffd93d;
+
+    --display: "Lilita One", "Arial Black", "Trebuchet MS", system-ui, sans-serif;
+    --body: "Baloo 2", "Trebuchet MS", system-ui, -apple-system, sans-serif;
+
+    --card-radius: 28px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    font-family: var(--body);
+    color: var(--white);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* the gradient lives on its own fixed layer: background-attachment: fixed
+     forces a full repaint on every scroll frame on iOS */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient(160deg, var(--blue-900) 0%, #0d2a5e 45%, #0a3d52 100%);
+  }
+
+  /* ---------- floating background bubbles ---------- */
+  .bubbles { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+
+  .bubble {
+    position: absolute;
+    top: 0;
+    border-radius: 50%;
+    opacity: .16;
+    will-change: transform;
+    animation: float-up ease-in-out infinite;
+  }
+
+  .bubble.b-green { background: var(--green-500); }
+  .bubble.b-blue  { background: var(--blue-300); }
+
+  /* a slight sideways sway at mid-height stops the drift reading as a
+     conveyor belt */
+  @keyframes float-up {
+    0%   { transform: translate3d(0, 108vh, 0) scale(.65); }
+    50%  { transform: translate3d(var(--drift, 0px), 45vh, 0) scale(.95); }
+    100% { transform: translate3d(0, -18vh, 0) scale(1.2); }
+  }
+
+  /* ---------- layout ---------- */
+  .wrap {
+    position: relative;
+    z-index: 2;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    padding: 40px 20px 48px;
+  }
+
+  /* ---------- entrance ---------- */
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(24px) scale(.985); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .panel {
+    width: 100%;
+    max-width: 720px;
+    text-align: center;
+    background: linear-gradient(170deg, rgba(47,125,246,.30), rgba(18,165,90,.26));
+    border: 6px solid var(--ink);
+    border-radius: var(--card-radius);
+    box-shadow: 0 14px 0 rgba(6,18,43,.55), 0 26px 50px rgba(0,0,0,.35);
+    padding: 30px 24px 34px;
+    animation: rise-in .7s cubic-bezier(.2,.8,.25,1) both;
+  }
+
+  /* ---------- jumping cube (Geometry Dash style) ---------- */
+  .stage { position: relative; height: 168px; margin-bottom: 6px; }
+
+  .cube {
+    position: absolute;
+    left: 50%;
+    bottom: 26px;
+    width: 78px;
+    height: 78px;
+    margin-left: -39px;
+    border: 6px solid var(--ink);
+    border-radius: 10px;
+    background: linear-gradient(150deg, var(--green-300), var(--green-600));
+    box-shadow: inset -7px -7px 0 rgba(6,18,43,.28);
+    will-change: transform;
+    animation: jump 2.6s linear infinite;
+  }
+
+  .cube::after {
+    content: "";
+    position: absolute;
+    inset: 20px;
+    border: 5px solid var(--ink);
+    border-radius: 4px;
+    background: rgba(255,255,255,.22);
+  }
+
+  .ground {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    width: 240px;
+    height: 9px;
+    margin-left: -120px;
+    background: var(--green-500);
+    border: 4px solid var(--ink);
+    border-radius: 6px;
+  }
+
+  /* Soft contact shadow that shrinks and fades as the cube rises. This is
+     what makes the jump read as height rather than a flat sprite sliding.
+     Radial gradient instead of blur: no per-frame filter cost.
+     Wider than the cube on purpose, otherwise the cube hides it entirely. */
+  .cube-shadow {
+    position: absolute;
+    left: 50%;
+    bottom: 19px;
+    width: 112px;
+    height: 22px;
+    margin-left: -56px;
+    background: radial-gradient(ellipse at center,
+                rgba(0,0,0,.55) 0%, rgba(0,0,0,.3) 46%, rgba(0,0,0,0) 72%);
+    will-change: transform, opacity;
+    animation: shadow 2.6s linear infinite;
+  }
+
+  /* Each segment carries its own timing function so the arc behaves like a
+     real jump: quick launch, gravity-dominated fall, hard impact. */
+  @keyframes jump {
+    /* stand -> crouch */
+    0%   { transform: translateY(0)      rotate(0deg)   scale(1, 1);
+           animation-timing-function: cubic-bezier(.4, 0, .9, .6); }
+    6%   { transform: translateY(0)      rotate(0deg)   scale(1.2, .8); }
+    /* launch, stretching upward */
+    11%  { transform: translateY(-34px) rotate(26deg)  scale(.92, 1.12);
+           animation-timing-function: cubic-bezier(.15, .55, .45, 1); }
+    /* apex, zero velocity at the top */
+    25%  { transform: translateY(-134px) rotate(178deg) scale(1, 1);
+           animation-timing-function: cubic-bezier(.55, .05, .8, .6); }
+    /* falling, accelerating */
+    36%  { transform: translateY(-30px) rotate(308deg) scale(1, 1);
+           animation-timing-function: cubic-bezier(.35, 0, .25, 1); }
+    /* impact squash */
+    41%  { transform: translateY(0)     rotate(360deg) scale(1.32, .68);
+           animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
+    /* recover */
+    47%  { transform: translateY(0)     rotate(360deg) scale(1, 1); }
+    /* idle: 360deg is visually identical to 0deg, so the loop is seamless */
+    100% { transform: translateY(0)     rotate(360deg) scale(1, 1); }
+  }
+
+  /* kept in exact time with the cube so the shadow always tracks the arc */
+  @keyframes shadow {
+    0%   { transform: scale(1, 1);    opacity: 1;
+           animation-timing-function: cubic-bezier(.4, 0, .9, .6); }
+    6%   { transform: scale(1.18, 1); opacity: 1;
+           animation-timing-function: cubic-bezier(.15, .55, .45, 1); }
+    11%  { transform: scale(1.05, .95); opacity: .9; }
+    25%  { transform: scale(.46, .4);  opacity: .3;
+           animation-timing-function: cubic-bezier(.55, .05, .8, .6); }
+    36%  { transform: scale(.78, .7);  opacity: .6;
+           animation-timing-function: cubic-bezier(.35, 0, .25, 1); }
+    41%  { transform: scale(1.3, .5);  opacity: 1;
+           animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
+    47%  { transform: scale(1, 1);     opacity: 1; }
+    100% { transform: scale(1, 1);     opacity: 1; }
+  }
+
+  /* ---------- outlined display headings (matches font reference) ---------- */
+  .display { display: block; width: 100%; height: auto; overflow: visible; }
+
+  .display text {
+    font-family: var(--display);
+    fill: var(--white);
+    stroke: var(--ink);
+    paint-order: stroke fill;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .lead { max-width: 560px; margin: 0 auto; }
+
+  .kicker {
+    font-family: var(--body);
+    font-weight: 700;
+    font-size: clamp(.85rem, 2.4vw, 1.05rem);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--blue-300);
+    margin: 0 0 12px;
+  }
+
+  /* ---------- copyable ID card ---------- */
+  .id-card {
+    position: relative;
+    margin: 26px auto 0;
+    max-width: 560px;
+    padding: 22px 20px 20px;
+    background: linear-gradient(165deg, #ffffff, var(--blue-100));
+    border: 6px solid var(--ink);
+    border-radius: 24px;
+    box-shadow: 0 10px 0 rgba(6,18,43,.45);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    /* slight overshoot so the lift settles rather than snapping */
+    transition: transform .26s cubic-bezier(.34, 1.4, .64, 1),
+                box-shadow .26s cubic-bezier(.34, 1.4, .64, 1);
+  }
+
+  .id-card:hover { transform: translateY(-4px); box-shadow: 0 14px 0 rgba(6,18,43,.45); }
+  .id-card:active { transform: translateY(4px); box-shadow: 0 4px 0 rgba(6,18,43,.45); }
+
+  .id-card:focus-within { outline: 5px dashed var(--gold); outline-offset: 6px; }
+
+  .id-card .badge-label {
+    font-family: var(--body);
+    font-weight: 700;
+    font-size: clamp(.8rem, 2.2vw, .95rem);
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: #2a5f8f;
+    margin: 0 0 6px;
+  }
+
+  .id-card .display text { fill: var(--green-600); }
+
+  .copy-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 15px 30px;
+    font-family: var(--display);
+    font-size: clamp(1.05rem, 3.4vw, 1.35rem);
+    letter-spacing: .04em;
+    color: var(--ink);
+    background: linear-gradient(180deg, var(--green-300), var(--green-500));
+    border: 5px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 0 7px 0 var(--ink);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    /* kills the 300ms tap delay on iOS */
+    touch-action: manipulation;
+    /* filter/brightness instead of background: a linear-gradient cannot be
+       interpolated, so transitioning `background` snaps in most browsers */
+    transition: transform .24s cubic-bezier(.34, 1.56, .64, 1),
+                box-shadow .24s cubic-bezier(.34, 1.56, .64, 1),
+                filter .2s ease;
+  }
+
+  .copy-btn:hover { filter: brightness(1.07) saturate(1.06); }
+
+  .copy-btn:active {
+    transform: translateY(5px) scale(1.02);
+    box-shadow: 0 2px 0 var(--ink);
+  }
+
+  /* success reads as a pop upward, not a button stuck down. :not(:active)
+     keeps the press-in feedback working while the finger is still down. */
+  .id-card.is-copied .copy-btn:not(:active) {
+    transform: scale(1.07);
+    box-shadow: 0 8px 0 var(--ink);
+  }
+
+  /* gold wash cross-fades in over the green */
+  .copy-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, #ffe98a, var(--gold));
+    opacity: 0;
+    transition: opacity .34s ease;
+  }
+
+  .id-card.is-copied .copy-btn::after { opacity: 1; }
+
+  .copy-btn > * { position: relative; z-index: 1; }
+
+  .copy-btn:focus-visible { outline: 5px solid var(--blue-300); outline-offset: 5px; }
+
+  .copy-icon { font-size: 1.1em; line-height: 1; }
+
+  .hint {
+    margin: 14px 0 0;
+    font-size: clamp(.85rem, 2.4vw, 1rem);
+    font-weight: 600;
+    color: #2a5f8f;
+    min-height: 1.4em;
+  }
+
+  .hint.ok { color: var(--green-600); }
+  .hint.bad { color: #c0392b; }
+
+  /* ---------- confetti burst ---------- */
+  .confetti {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    border: 3px solid var(--ink);
+    border-radius: 2px;
+    pointer-events: none;
+    animation: burst 1s cubic-bezier(.2, .55, .4, 1) forwards;
+  }
+
+  /* out fast, then sag under gravity instead of flying in a straight line */
+  @keyframes burst {
+    0%   { transform: translate(-50%, -50%) scale(.3) rotate(0deg); opacity: 1; }
+    32%  { transform: translate(calc(var(--dx) * .72), calc(var(--dy) * .72 - 26px))
+                        scale(1) rotate(calc(var(--rot) * .45)); opacity: 1; }
+    100% { transform: translate(var(--dx), calc(var(--dy) + 120px))
+                        scale(.82) rotate(var(--rot)); opacity: 0; }
+  }
+
+  /* ---------- footer note ---------- */
+  .note {
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    padding: 0 20px;
+    max-width: 620px;
+    text-align: center;
+    font-size: clamp(.85rem, 2.3vw, 1rem);
+    font-weight: 600;
+    color: var(--blue-100);
+    animation: rise-in .7s cubic-bezier(.2, .8, .25, 1) .12s both;
+  }
+
+  .note strong { color: var(--gold); }
+
+  /* ---------- reduced motion ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001ms !important;
+      animation-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important;
+    }
+    /* the drifting bubbles would otherwise freeze off-screen at their
+       start position and leave the background flat and lifeless */
+    .bubbles, .cube-shadow { display: none; }
+    .cube { transform: none; }
+    .panel, .note { animation: none; opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bubbles" id="bubbles" aria-hidden="true"></div>
+
+<main class="wrap">
+  <div class="panel">
+
+    <div class="stage" aria-hidden="true">
+      <div class="ground"></div>
+      <div class="cube-shadow"></div>
+      <div class="cube"></div>
+    </div>
+
+    <p class="kicker">Geometry Dash</p>
+
+    <h1 style="margin:0">
+      <svg class="display lead" viewBox="0 0 1000 130" role="img"
+           aria-label="Find my game with ID">
+        <text x="500" y="98" text-anchor="middle" font-size="82"
+              textLength="950" lengthAdjust="spacingAndGlyphs"
+              stroke-width="11">Find my game with ID</text>
+      </svg>
+    </h1>
+
+    <div class="id-card" id="idCard">
+      <p class="badge-label">My Game ID</p>
+
+      <svg class="display" viewBox="0 0 900 230" role="img" aria-label="Game ID 148822073">
+        <text x="450" y="180" text-anchor="middle" font-size="200"
+              textLength="840" lengthAdjust="spacingAndGlyphs"
+              stroke-width="22">148822073</text>
+      </svg>
+
+      <button class="copy-btn" id="copyBtn" type="button">
+        <span class="copy-icon" id="copyIcon" aria-hidden="true">📋</span>
+        <span id="copyText">Tap to copy</span>
+      </button>
+
+      <p class="hint" id="hint" role="status" aria-live="polite"></p>
+    </div>
+
+  </div>
+
+  <p class="note">
+    Type <strong>148822073</strong> into the level search box in the game
+    to jump straight to my level. Share the number with your friends!
+  </p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var GAME_ID = "148822073";
+
+  var idCard  = document.getElementById("idCard");
+  var copyBtn = document.getElementById("copyBtn");
+  var copyText = document.getElementById("copyText");
+  var copyIcon = document.getElementById("copyIcon");
+  var hint    = document.getElementById("hint");
+  var bubbles = document.getElementById("bubbles");
+
+  /* ---------- background bubbles ---------- */
+  (function makeBubbles() {
+    var sizes = [26, 34, 44, 56, 18, 30];
+    for (var i = 0; i < 16; i++) {
+      var b = document.createElement("span");
+      b.className = "bubble " + (i % 2 ? "b-blue" : "b-green");
+      var s = sizes[i % sizes.length];
+      b.style.width = s + "px";
+      b.style.height = s + "px";
+      b.style.left = (Math.random() * 100).toFixed(2) + "%";
+      /* sideways sway at the halfway point, so the drift isn't a straight line */
+      b.style.setProperty("--drift", (Math.random() * 90 - 45).toFixed(0) + "px");
+      b.style.animationDuration = (11 + Math.random() * 12).toFixed(1) + "s";
+      b.style.animationDelay = (-Math.random() * 20).toFixed(1) + "s";
+      bubbles.appendChild(b);
+    }
+  })();
+
+  /* ---------- clipboard with fallback for file:// / older browsers ---------- */
+  function legacyCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function copyText_() {
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      /* the modern API can still be rejected (blocked permission, unfocused
+         document, older Firefox/Safari) - fall back before giving up */
+      return navigator.clipboard.writeText(GAME_ID).catch(function () {
+        if (legacyCopy(GAME_ID)) return;
+        return Promise.reject(new Error("copy failed"));
+      });
+    }
+    return new Promise(function (resolve, reject) {
+      if (legacyCopy(GAME_ID)) resolve();
+      else reject(new Error("copy failed"));
+    });
+  }
+
+  /* ---------- confetti ---------- */
+  function clearConfetti() {
+    var live = idCard.querySelectorAll(".confetti");
+    for (var i = 0; i < live.length; i++) live[i].remove();
+  }
+
+  function confetti() {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    /* a previous burst may still be alive if its animation never finished
+       (backgrounded tab, cancelled animation) - don't let them stack up */
+    clearConfetti();
+    var colors = ["#1ec96e", "#6fc3ff", "#ffd93d", "#2f7df6", "#6ef2a8"];
+    for (var i = 0; i < 18; i++) {
+      var c = document.createElement("span");
+      c.className = "confetti";
+      var angle = (Math.PI * 2 * i) / 18 + Math.random() * 0.4;
+      var dist = 90 + Math.random() * 130;
+      c.style.setProperty("--dx", Math.cos(angle) * dist + "px");
+      c.style.setProperty("--dy", Math.sin(angle) * dist + "px");
+      c.style.setProperty("--rot", Math.round(Math.random() * 720 - 360) + "deg");
+      c.style.background = colors[i % colors.length];
+      c.style.animationDelay = (i * 8) + "ms";
+      /* self-clean when the animation really ends ... */
+      c.addEventListener("animationend", function () { this.remove(); });
+      /* ... plus a backstop, because animationend never fires if the
+         animation is cancelled or the tab is backgrounded. The node has to
+         be captured: inside a timer callback `this` is not the element. */
+      setTimeout((function (node) {
+        return function () { node.remove(); };
+      })(c), 1600);
+      idCard.appendChild(c);
+    }
+  }
+
+  /* ---------- copy feedback ---------- */
+  var resetTimer = null;
+
+  function showSuccess() {
+    idCard.classList.add("is-copied");
+    copyIcon.textContent = "✅";
+    copyText.textContent = "Copied!";
+    hint.textContent = "Now paste it in the game search box.";
+    hint.className = "hint ok";
+    confetti();
+    clearTimeout(resetTimer);
+    resetTimer = setTimeout(reset, 2600);
+  }
+
+  function showFailure() {
+    copyIcon.textContent = "✋";
+    copyText.textContent = "Copy failed";
+    hint.textContent = "Your game ID is " + GAME_ID + " — please write it down.";
+    hint.className = "hint bad";
+    clearTimeout(resetTimer);
+    resetTimer = setTimeout(reset, 4000);
+  }
+
+  function reset() {
+    idCard.classList.remove("is-copied");
+    copyIcon.textContent = "📋";
+    copyText.textContent = "Tap to copy";
+    hint.textContent = "";
+    hint.className = "hint";
+    clearConfetti();
+  }
+
+  function onCopy() {
+    copyText_().then(showSuccess).catch(showFailure);
+  }
+
+  copyBtn.addEventListener("click", onCopy);
+  idCard.addEventListener("click", function (e) {
+    if (copyBtn.contains(e.target)) return;
+    onCopy();
+  });
+
+})();
+</script>
+
+</body>
+</html>
